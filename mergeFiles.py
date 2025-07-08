@@ -5,57 +5,69 @@ import logging
 
 # Setup basic logging
 logging.basicConfig(
-    filename='merge_csvs.log',
+    filename='merge_files.log',
     level=logging.INFO,
     format='%(asctime)s %(levelname)s %(message)s'
 )
 
-def discover_csv_files(folder=None):
+def discover_files(folder=None):
     """
-    Finds all CSV files in the given folder.
+    Finds all CSV and Excel files in the given folder.
     """
     folder = folder or os.getcwd()
-    pattern = os.path.join(folder, '*.csv')
-    files = glob.glob(pattern)
-    logging.info(f"Discovered CSV files: {files}")
+    patterns = ['*.csv', '*.xlsx', '*.xls']
+    files = []
+    for pat in patterns:
+        files.extend(glob.glob(os.path.join(folder, pat)))
+    logging.info(f"Discovered files: {files}")
     return files
 
-def read_csv_file(path):
+def read_file(path):
     """
-    Reads a CSV file into a DataFrame.
+    Reads a file into a DataFrame, based on its extension.
     """
     try:
-        df = pd.read_csv(path)
-        logging.info(f"Read CSV: {path} with {len(df)} rows")
+        ext = os.path.splitext(path)[1].lower()
+        if ext == '.csv':
+            df = pd.read_csv(path)
+        elif ext in ['.xlsx', '.xls']:
+            df = pd.read_excel(path)
+        else:
+            logging.warning(f"Skipping unsupported file type: {path}")
+            return None
+        if df.empty:
+            logging.info(f"Empty DataFrame from {path}")
+            return None
+        logging.info(f"Read {path} with {len(df)} rows")
         return df
     except Exception as e:
         logging.error(f"Failed to read {path}: {e}")
         return None
 
-def merge_csvs(output_name='merged_output.csv', folder=None):
+def merge_files(output_name='final_output.csv', folder=None):
     """
-    Discovers all CSV files, merges them, and saves to output_name.
+    Discovers CSV and Excel files, merges them, and saves as CSV.
     """
-    files = discover_csv_files(folder)
+    files = discover_files(folder)
     if not files:
-        print("No CSV files found to merge.")
+        print("No CSV or Excel files found to merge.")
         return
 
-    dfs = [read_csv_file(f) for f in files]
-    dfs = [df for df in dfs if df is not None and not df.empty]
+    dfs = [read_file(f) for f in files]
+    dfs = [df for df in dfs if df is not None]
 
     if not dfs:
-        print("No valid (non-empty) CSV files to merge.")
+        print("No valid files to merge.")
         return
 
     merged = pd.concat(dfs, ignore_index=True)
     try:
-        merged.to_csv(output_name, index=False)
+        merged.to_csv(output_name, index=False, encoding='utf-8')
         print(f"Successfully merged {len(dfs)} files into: {output_name}")
-        logging.info(f"Merged into {output_name}")
+        logging.info(f"Merged {len(dfs)} files into {output_name}")
     except Exception as e:
         print(f"Error saving merged file: {e}")
         logging.error(f"Error saving output: {e}")
 
 if __name__ == "__main__":
-    merge_csvs()
+    merge_files()
